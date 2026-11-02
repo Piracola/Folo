@@ -13,9 +13,15 @@
 `apps/desktop/layer/renderer/src/hooks/biz/useFeature.ts`
 
 - `checkFeatureEnabled` 在调试面板没开 `__override` 时直接返回 `true`，即 App 内的功能开关（目前就是 `ai`）永远为开，AI 入口始终可见。
-- 没有伪造任何东西：套餐页、升级提示、支付流程、需要官方后端校验的请求都保持原样。
 
-### 2. 可自定义 AI 服务商（不依赖官方 AI）
+### 2. 界面按「会员」对待
+
+`apps/desktop/layer/renderer/src/modules/patch/unlock-membership.ts`（在 `main.tsx` 里引入）
+
+- 登录后把用户仓库里的角色改写成 `Pro`，于是所有 `role === Free` 判断放行：设置里带 `paidLevel` 的项不再置灰、订阅/列表表单不再要求升级、翻译预取、评论提示等一起放开。
+- 只影响本机界面。真正由服务器判定的东西（官方 AI 额度、官方账号权益）不会因为这一改而改变；AI 请用下面的本机服务商。
+
+### 3. 可自定义 AI 服务商（不依赖官方 AI）
 
 新代码放在 `modules/local-ai`、`atoms/local-ai.ts` 和主进程的 `ipc/services/ai.ts`，官方文件只动了几个分支点。
 
@@ -41,11 +47,14 @@
 - `apps/desktop/layer/renderer/src/modules/local-ai/prompt.ts` — 消息与上下文块转提示词
 - `apps/desktop/layer/renderer/src/modules/local-ai/tasks.ts` — 摘要、标题生成
 - `apps/desktop/layer/renderer/src/modules/settings/tabs/ai/local-provider/LocalProviderSection.tsx` — 设置界面
+- `apps/desktop/layer/renderer/src/modules/patch/unlock-membership.ts` — 把登录账号按 Pro 对待
+- `.github/workflows/build-windows-fork.yml` — 云端出 Windows 安装包
 - `scripts/fork/sync-upstream.ps1`、本 README
 
 修改（每处都只有几行）：
 
 - `hooks/biz/useFeature.ts` — 功能开关恒开
+- `src/main.tsx` — 引入会员解锁
 - `modules/ai-chat/store/transport.ts` — 启用本机服务商时换掉聊天传输层
 - `modules/ai-chat/hooks/useAIModel.ts` — 模型名显示为本机模型
 - `modules/ai-chat/utils/titleGeneration.ts` — 标题走本机
@@ -99,7 +108,7 @@ corepack pnpm install --config.pm-on-fail=ignore
 - 用的是 GitHub 免费提供的 Windows runner，公共仓库不花钱；一次大约十几分钟。
 - 安装包**没有代码签名**，第一次运行 Windows 会提示「未知发布者」，选「更多信息 → 仍要运行」即可。
 - 没配任何仓库变量，所以构建出来的 app 用的就是官方 API（`https://api.folo.is`），登录、同步照旧，AI 走你在设置里填的本机服务商。
-- 上游自带的 `build-desktop.yml` 也会在推送时被触发，但它要求仓库里有签名密钥，fork 上没有，任务会自动跳过，不影响我们这条流程。
+- 上游自带的 `build-desktop.yml` 也会在推送时被触发（它在 fork 上也会跑完整的 mac/win/linux 矩阵，但签名步骤会跳过，产出的是未签名包）。不影响我们这条流程，但会白白占三台机器：fork 的 Actions 页面里选「🖥️ Build Desktop」→ 右上角 `⋯` → **Disable workflow** 关掉即可。
 
 ## 五、冲突怎么处理
 
