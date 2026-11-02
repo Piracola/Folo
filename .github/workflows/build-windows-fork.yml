@@ -1,0 +1,74 @@
+name: 🪟 Build Windows (fork)
+
+# Builds the Windows installer on GitHub runners so the fork needs no local toolchain.
+# Unsigned on purpose: signing needs a paid certificate, so the app is distributed as a plain
+# installer, and Windows shows the usual "unknown publisher" prompt on first start.
+
+on:
+  push:
+    branches:
+      - local-enhance
+    paths:
+      - "apps/desktop/**"
+      - "packages/**"
+      - "locales/**"
+      - "pnpm-lock.yaml"
+      - "package.json"
+      - ".github/workflows/build-windows-fork.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: fork-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_OPTIONS: --max-old-space-size=8192
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Use Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      # No repository variables are set here, so the build falls back to the public API and web URLs
+      # declared in packages/internal/shared/src/env.common.ts.
+      - name: Install dependencies
+        run: pnpm i
+
+      - name: Prebuild packages (Windows)
+        run: pnpm run build:packages
+
+      - name: Update main hash
+        working-directory: apps/desktop
+        run: pnpm update:main-hash
+
+      - name: Build - Vite
+        working-directory: apps/desktop
+        run: pnpm build:electron-vite
+
+      - name: Build - Windows installer
+        working-directory: apps/desktop
+        run: pnpm build:electron-forge
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v7
+        with:
+          name: folo-windows-x64
+          path: |
+            apps/desktop/out/make/**/*.exe
+            apps/desktop/out/make/**/latest.yml
+          retention-days: 30

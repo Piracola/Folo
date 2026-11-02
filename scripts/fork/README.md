@@ -86,13 +86,28 @@ pwsh scripts/fork/sync-upstream.ps1 -Build                # 同步 + 打包 Wind
 corepack pnpm install --config.pm-on-fail=ignore
 ```
 
-## 四、冲突怎么处理
+## 四、云端构建（GitHub Actions）
+
+不想在本机装 Rust/Python/证书这一类打包依赖时，让 GitHub 帮你出安装包：
+
+1. fork 仓库的 **Actions** 页面第一次要点一下「I understand my workflows, go ahead and enable them」。
+2. 推送到 `local-enhance` 会自动触发 `.github/workflows/build-windows-fork.yml`；也可以在 Actions 里选这个流程手动运行。
+3. 跑完在运行详情页最下面的 **Artifacts** 里下载 `folo-windows-x64`，里面是 `*.exe` 安装包。
+
+说明：
+
+- 用的是 GitHub 免费提供的 Windows runner，公共仓库不花钱；一次大约十几分钟。
+- 安装包**没有代码签名**，第一次运行 Windows 会提示「未知发布者」，选「更多信息 → 仍要运行」即可。
+- 没配任何仓库变量，所以构建出来的 app 用的就是官方 API（`https://api.folo.is`），登录、同步照旧，AI 走你在设置里填的本机服务商。
+- 上游自带的 `build-desktop.yml` 也会在推送时被触发，但它要求仓库里有签名密钥，fork 上没有，任务会自动跳过，不影响我们这条流程。
+
+## 五、冲突怎么处理
 
 - 新增文件永远不会冲突。
 - 冲突只会出现在上面「修改」清单里那几个文件，通常都是几行。原则：保留本 fork 的写法（分支判断、模型名、`useAISummary` 的替换），再 `git add` + `git rebase --continue`，最后跑一次 `-Typecheck`。
 - 万一上游把这些文件重写了，就按「意图」重新加回去：聊天传输层换成 `LocalChatTransport`、模型 id 用 `formatLocalAIModelId`、摘要 hook 换成 `useAISummary`、标题走 `generateLocalChatTitle`。
 
-## 五、已知限制
+## 六、已知限制
 
 - 本机模式的系统提示是简版，没有官方按场景拼的长提示，回答风格会朴素一些。
 - 上下文块只处理：当前条目正文（截断 12000 字）、订阅源/时间线提示、附件仅给文件名。
