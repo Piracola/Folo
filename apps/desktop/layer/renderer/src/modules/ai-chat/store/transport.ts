@@ -54,7 +54,7 @@ export function createChatTransport({ onValue, titleHandler }: CreateChatTranspo
   // With a local provider configured the reply never touches the Folo API, so the streaming
   // transport is replaced instead of being repointed at another endpoint.
   if (isLocalAIEnabled()) {
-    return new LocalChatTransport()
+    return new LocalChatTransport({ titleHandler })
   }
 
   return new ExtendChatTransport({

@@ -4,11 +4,21 @@ import { nanoid } from "nanoid"
 
 import { getLocalAIProvider } from "~/atoms/local-ai"
 import { getAISettings } from "~/atoms/settings/ai"
+import { AIPersistService } from "~/modules/ai-chat/services"
 import type { BizUIMessage } from "~/modules/ai-chat/store/types"
 
 import type { LocalAIMessage } from "./bridge"
 import { streamLocalChat } from "./bridge"
 import { buildLocalChatMessages, buildLocalSystemPrompt } from "./prompt"
+import { generateLocalChatTitle } from "./tasks"
+
+/** Same shape as the title handler the official transport receives */
+export interface LocalChatTitleHandler {
+  chatId?: string
+  shouldHandle?: () => boolean
+  onTitleChange?: (title: string) => void
+  persist?: boolean | ((title: string) => void | Promise<void>)
+}
 
 /**
  * A chat transport that answers straight from the provider configured in the settings instead of
@@ -18,6 +28,8 @@ import { buildLocalChatMessages, buildLocalSystemPrompt } from "./prompt"
  * chat (persistence, rendering, reasoning sections) needs no knowledge of where it came from.
  */
 export class LocalChatTransport implements ChatTransport<BizUIMessage> {
+  constructor(private readonly options: { titleHandler?: LocalChatTitleHandler } = {}) {}
+
   async sendMessages({
     messages,
     abortSignal,
@@ -34,6 +46,8 @@ export class LocalChatTransport implements ChatTransport<BizUIMessage> {
       personalizePrompt: getAISettings().personalizePrompt,
     })
     const payload: LocalAIMessage[] = [{ role: "system", content: systemPrompt }, ...history]
+    // The backend titles a chat with its first answer; locally the same rule is applied here
+    const shouldTitle = messages.every((message) => message.role !== "assistant")
 
     return createUIMessageStream<BizUIMessage>({
       onError: (error) => (error instanceof Error ? error.message : String(error)),
@@ -87,6 +101,10 @@ export class LocalChatTransport implements ChatTransport<BizUIMessage> {
           closeOpenParts()
           throw error
         }
+
+        if (shouldTitle) {
+          void this.updateTitle(history)
+        }
       },
     })
   }
@@ -94,5 +112,33 @@ export class LocalChatTransport implements ChatTransport<BizUIMessage> {
   /** A local reply has no server side state to reconnect to */
   async reconnectToStream(): Promise<ReadableStream<UIMessageChunk> | null> {
     return null
+  }
+
+  private async updateTitle(messages: LocalAIMessage[]) {
+    const { titleHandler } = this.options
+    if (!titleHandler) return
+    if (!(titleHandler.shouldHandle?.() ?? true)) return
+
+    try {
+      const title = await generateLocalChatTitle(messages)
+      if (!title) return
+
+      titleHandler.onTitleChange?.(title)
+
+      const persistOption = titleHandler.persist
+      const shouldPersist = persistOption === undefined ? true : persistOption
+      if (!shouldPersist) return
+
+      if (typeof persistOption === "function") {
+        await persistOption(title)
+        return
+      }
+
+      if (titleHandler.chatId) {
+        await AIPersistService.updateSessionTitle(titleHandler.chatId, title)
+      }
+    } catch (error) {
+      console.error("Failed to generate the local chat title:", error)
+    }
   }
 }
