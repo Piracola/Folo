@@ -97,17 +97,23 @@ corepack pnpm install --config.pm-on-fail=ignore
 
 ## 四、云端构建（GitHub Actions）
 
-不想在本机装 Rust/Python/证书这一类打包依赖时，让 GitHub 帮你出安装包：
+一条流水线 `.github/workflows/build-windows-fork.yml` 管三件事：
 
-1. fork 仓库的 **Actions** 页面第一次要点一下「I understand my workflows, go ahead and enable them」。
-2. 推送到 `local-enhance` 会自动触发 `.github/workflows/build-windows-fork.yml`；也可以在 Actions 里选这个流程手动运行。
-3. 跑完在运行详情页最下面的 **Artifacts** 里下载 `folo-windows-x64`，里面是 `*.exe` 安装包。
+| 触发                   | 做什么                                                               |
+| ---------------------- | -------------------------------------------------------------------- |
+| 推送到 `local-enhance` | 直接构建，产出安装包                                                 |
+| 每天 10:00（北京时间） | 先 rebase 到 `upstream/dev`，有变化才构建；冲突则开一个 issue 并中止 |
+| 打 `fork/v*` 标签      | 构建 + 发 GitHub Release，装过的人能看到新版本                       |
+| Actions 页手动运行     | 同上（同步 + 构建）                                                  |
+
+拿安装包：Actions → 对应那次运行 → 页面底部 **Artifacts** → `folo-windows-x64`。打标签发布的版本则直接在 Releases 页下载。
 
 说明：
 
-- 用的是 GitHub 免费提供的 Windows runner，公共仓库不花钱；一次大约十几分钟。
+- 用的是 GitHub 免费提供的 Windows runner，公共仓库不花钱；一次大约六分钟。
 - 安装包**没有代码签名**，第一次运行 Windows 会提示「未知发布者」，选「更多信息 → 仍要运行」即可。
 - 没配任何仓库变量，所以构建出来的 app 用的就是官方 API（`https://api.folo.is`），登录、同步照旧，AI 走你在设置里填的本机服务商。
+- **自动更新已关闭**：官方更新源只会发官方版本，开着的话某次退出后 app 会把自己换回原版。新版本靠你自己看 Release / Artifacts 决定装不装。
 - 上游自带的 `build-desktop.yml` 也会在推送时被触发（它在 fork 上也会跑完整的 mac/win/linux 矩阵，但签名步骤会跳过，产出的是未签名包）。不影响我们这条流程，但会白白占三台机器：fork 的 Actions 页面里选「🖥️ Build Desktop」→ 右上角 `⋯` → **Disable workflow** 关掉即可。
 
 ## 五、冲突怎么处理
@@ -122,3 +128,26 @@ corepack pnpm install --config.pm-on-fail=ignore
 - 上下文块只处理：当前条目正文（截断 12000 字）、订阅源/时间线提示、附件仅给文件名。
 - 不返回 token 用量，因此用量统计与 `TokenUsagePill` 不显示。
 - 账号级 BYOK（把密钥上传到 Folo 服务器）保持原样，会员限制仍由服务器判断；本机服务商是另一条独立通道。
+- 额度提示已在本机模式下去掉（`useAIConfiguration` 返回不限量），但**官方 AI 端点的其他能力**（翻译、批量翻译、语音朗读、每日摘要）目前仍走官方后端，需要会员才能用；要全部接管见第七节。
+
+## 七、接管全部 AI 能力（设计）
+
+官方 AI 一共这些端点：`chat`、`summary`、`summaryTitle`、`translation`、`translationBatch`、`tts`、`daily`、`config`、`memory.*`。
+现在本机接管了 `chat`（传输层）、`summary` 与 `summaryTitle`（hook），其余仍打官方后端。
+
+要「一劳永逸」，不该继续逐个功能打补丁，而是收敛到一个**唯一的出口**：
+
+> `apps/desktop/layer/renderer/src/lib/api-client.ts` 里的 `FollowClient` 用了自定义 `fetch`，**所有**官方 API 请求都从这里过。
+
+在这个 fetch 里按路径分流即可：
+
+- 命中 `/ai/*` → 交给本机实现，构造一个 `Response` 返回（JSON 的端点直接回对象，流式的回 `ReadableStream`）
+- 没命中 / 没实现的端点 → 原样放行到官方后端
+
+好处：
+
+- 拦截点只有一个，上游再改 UI、加功能都不影响
+- 每个端点只需要一个「协议适配器」，逻辑和现在的 `LocalChatTransport`、`tasks.ts` 一样
+- 现有 hook 级补丁（摘要、标题）以后可以删掉，改由拦截器统一处理，上游 diff 更小
+
+建议顺序：`translation` → `daily` → `translationBatch` → `tts`（音频需要另一套处理，最后再说）。

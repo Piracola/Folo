@@ -1,31 +1,94 @@
-name: 🪟 Build Windows (fork)
+name: 🪟 Windows build & upstream sync (fork)
 
-# Builds the Windows installer on GitHub runners so the fork needs no local toolchain.
-# Unsigned on purpose: signing needs a paid certificate, so the app is distributed as a plain
-# installer, and Windows shows the usual "unknown publisher" prompt on first start.
+# One workflow for the whole pipeline of this fork:
+#   - cron / manual : rebase `local-enhance` onto upstream `dev`, then build
+#   - push          : build straight away
+#   - tag fork/v*   : build and publish the installer as a release
+#
+# Builds are unsigned on purpose: signing needs a paid certificate, so Windows shows the usual
+# "unknown publisher" prompt on first start.
 
 on:
   push:
     branches:
       - local-enhance
-    paths:
-      - "apps/desktop/**"
-      - "packages/**"
-      - "locales/**"
-      - "pnpm-lock.yaml"
-      - "package.json"
-      - ".github/workflows/build-windows-fork.yml"
+    tags:
+      - "fork/v*"
+  schedule:
+    # 02:00 UTC, 10:00 in Beijing
+    - cron: "0 2 * * *"
   workflow_dispatch:
 
 concurrency:
   group: fork-windows-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  issues: write
+
 env:
   NODE_OPTIONS: --max-old-space-size=8192
 
 jobs:
+  sync:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.rebase.outputs.changed }}
+      status: ${{ steps.rebase.outputs.status }}
+
+    steps:
+      - name: Check out the fork branch
+        uses: actions/checkout@v7
+        with:
+          ref: local-enhance
+          fetch-depth: 0
+
+      - name: Rebase onto upstream dev
+        id: rebase
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          before="$(git rev-parse HEAD)"
+          git remote add upstream https://github.com/RSSNext/Folo.git
+          git fetch upstream dev
+
+          if ! git rebase upstream/dev; then
+            git rebase --abort
+            echo "status=conflict" >> "$GITHUB_OUTPUT"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          after="$(git rev-parse HEAD)"
+          if [ "$before" = "$after" ]; then
+            echo "status=clean" >> "$GITHUB_OUTPUT"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          git push origin HEAD:local-enhance --force-with-lease
+          echo "status=clean" >> "$GITHUB_OUTPUT"
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Report a conflict
+        if: steps.rebase.outputs.status == 'conflict'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Upstream sync conflict $(date -u +%F)"
+          body="Rebasing \`local-enhance\` onto \`RSSNext/Folo@dev\` conflicted and was aborted, so the branch still builds. Resolve it locally with \`pwsh scripts/fork/sync-upstream.ps1\`."
+          existing="$(gh issue list --search "$title in:title" --state open --json number --jq '.[0].number // empty')"
+          if [ -z "$existing" ]; then
+            gh issue create --title "$title" --body "$body"
+          fi
+
   build:
+    needs: sync
+    if: always() && needs.sync.result != 'failure' && (github.event_name != 'schedule' || needs.sync.outputs.changed == 'true')
     runs-on: windows-latest
     timeout-minutes: 60
 
@@ -33,6 +96,7 @@ jobs:
       - name: Check out Git repository
         uses: actions/checkout@v7
         with:
+          ref: local-enhance
           fetch-depth: 1
 
       - name: Setup pnpm
@@ -72,3 +136,15 @@ jobs:
             apps/desktop/out/make/**/*.exe
             apps/desktop/out/make/**/latest.yml
           retention-days: 30
+
+      - name: Publish the release
+        if: startsWith(github.ref, 'refs/tags/fork/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installers = Get-ChildItem -Path apps/desktop/out/make -Recurse -Filter *.exe |
+            Select-Object -ExpandProperty FullName
+          gh release create "${{ github.ref_name }}" $installers `
+            --title "Fork build ${{ github.ref_name }}" `
+            --notes "Unlocked Windows build from ``local-enhance`` at commit ${{ github.sha }}. Unsigned: choose 'More info → Run anyway' on first start."
