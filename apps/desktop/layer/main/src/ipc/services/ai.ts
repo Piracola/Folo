@@ -38,6 +38,9 @@ export interface AICompleteResult {
   text: string
 }
 
+/** A one shot completion that takes longer than this is treated as a dead connection */
+const COMPLETE_TIMEOUT = 60_000
+
 /**
  * The endpoint an OpenAI compatible provider streams chat completions from.
  * A pasted URL that already ends with `/chat/completions` is kept as it is.
@@ -162,6 +165,7 @@ export class AiService extends IpcService {
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let buffer = ""
+      let receivedDone = false
 
       while (true) {
         const { done, value } = await reader.read()
@@ -179,7 +183,14 @@ export class AiService extends IpcService {
           if (!line.startsWith("data:")) continue
 
           const payload = line.slice(5).trim()
-          if (!payload || payload === "[DONE]") continue
+          if (!payload) continue
+
+          // Gateways often keep the connection open after the terminator, so the reply ends here
+          // rather than waiting for the socket to close.
+          if (payload === "[DONE]") {
+            receivedDone = true
+            break
+          }
 
           let chunk: unknown
           try {
@@ -197,6 +208,11 @@ export class AiService extends IpcService {
           const { text, reasoning } = extractDeltaText(chunk)
           if (reasoning) send({ type: "reasoning", delta: reasoning })
           if (text) send({ type: "text", delta: text })
+        }
+
+        if (receivedDone) {
+          await reader.cancel().catch(() => {})
+          break
         }
       }
 
@@ -228,6 +244,9 @@ export class AiService extends IpcService {
   @IpcMethod()
   async complete(input: AICompleteInput): Promise<AICompleteResult> {
     const controller = new AbortController()
+    // A dead provider must not leave the settings test or a summary card pending forever
+    const timeout = setTimeout(() => controller.abort(), COMPLETE_TIMEOUT)
+
     try {
       const response = await net.fetch(buildCompletionsURL(input.baseURL), {
         method: "POST",
@@ -246,7 +265,15 @@ export class AiService extends IpcService {
       }
       const content = json?.choices?.[0]?.message?.content
       return { text: typeof content === "string" ? content : "" }
+    } catch (error) {
+      if (controller.signal.aborted) {
+        throw new Error(
+          `The provider did not answer within ${Math.round(COMPLETE_TIMEOUT / 1000)} seconds.`,
+        )
+      }
+      throw error
     } finally {
+      clearTimeout(timeout)
       controller.abort()
     }
   }

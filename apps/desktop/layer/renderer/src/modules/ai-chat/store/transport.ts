@@ -1,5 +1,5 @@
 import { env } from "@follow/shared/env.desktop"
-import type { HttpChatTransportInitOptions, UIMessageChunk } from "ai"
+import type { ChatTransport, HttpChatTransportInitOptions, UIMessageChunk } from "ai"
 import { HttpChatTransport, parseJsonEventStream, uiMessageChunkSchema } from "ai"
 import { t } from "i18next"
 
@@ -51,26 +51,44 @@ export function createChatTitleHandler(
  * This is used by the AbstractChat instance to communicate with AI providers
  */
 export function createChatTransport({ onValue, titleHandler }: CreateChatTransportOptions = {}) {
-  // With a local provider configured the reply never touches the Folo API, so the streaming
-  // transport is replaced instead of being repointed at another endpoint.
-  if (isLocalAIEnabled()) {
-    return new LocalChatTransport({ titleHandler })
+  // The local switch can be flipped while a chat is open, so the transport is picked on every send
+  // instead of once when the chat instance is created.
+  return new SwitchableChatTransport({ onValue, titleHandler })
+}
+
+class SwitchableChatTransport implements ChatTransport<BizUIMessage> {
+  constructor(private readonly options: CreateChatTransportOptions) {}
+
+  private create() {
+    const { onValue, titleHandler } = this.options
+
+    if (isLocalAIEnabled()) {
+      return new LocalChatTransport({ titleHandler })
+    }
+
+    return new ExtendChatTransport({
+      onValue,
+      titleHandler,
+      // Custom fetch configuration
+      api: `${env.VITE_API_URL}/ai/chat`,
+      credentials: "include",
+      // Add selected model to request body
+      body: () => {
+        const modelState = getAIModelState()
+        const { selectedModel } = modelState
+
+        return selectedModel ? { model: selectedModel } : {}
+      },
+    })
   }
 
-  return new ExtendChatTransport({
-    onValue,
-    titleHandler,
-    // Custom fetch configuration
-    api: `${env.VITE_API_URL}/ai/chat`,
-    credentials: "include",
-    // Add selected model to request body
-    body: () => {
-      const modelState = getAIModelState()
-      const { selectedModel } = modelState
+  sendMessages(options: Parameters<ChatTransport<BizUIMessage>["sendMessages"]>[0]) {
+    return this.create().sendMessages(options)
+  }
 
-      return selectedModel ? { model: selectedModel } : {}
-    },
-  })
+  reconnectToStream(options: Parameters<ChatTransport<BizUIMessage>["reconnectToStream"]>[0]) {
+    return this.create().reconnectToStream(options)
+  }
 }
 
 type UIMessageChunkParseResult =

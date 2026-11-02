@@ -131,6 +131,8 @@ export async function* streamLocalChat(
   } finally {
     abortSignal?.removeEventListener("abort", handleAbort)
     dispose()
+    // The consumer stopped reading, so the provider request is stopped as well
+    void ipcServices?.ai?.abortChat({ requestId })
   }
 }
 
