@@ -4,7 +4,7 @@ import { usePrefetchSummary } from "@follow/store/summary/hooks"
 import { summaryActions, useSummaryStore } from "@follow/store/summary/store"
 import { useQuery } from "@tanstack/react-query"
 
-import { getLocalAIProvider, useLocalAIProvider } from "~/atoms/local-ai"
+import { getLocalAIProvider, useLocalAIEnabled } from "~/atoms/local-ai"
 import { convertHtmlToIntegrationMarkdown } from "~/modules/integration/entry-content-markdown"
 
 import type { LocalAIMessage } from "./bridge"
@@ -77,7 +77,9 @@ export const generateLocalSummary = async ({
   actionLanguage: SupportedActionLanguage
 }): Promise<string | null> => {
   const provider = getLocalAIProvider()
-  if (!provider) return null
+  if (!provider) {
+    throw new Error("本机 AI 服务商还没配置完整，请到设置 · AI 里补全接口地址和模型。")
+  }
 
   const cached = readCachedSummary(entryId, actionLanguage, target)
   if (cached) return cached
@@ -121,7 +123,7 @@ export const generateLocalSummary = async ({
 
 /**
  * Drop-in replacement for `usePrefetchSummary`: the official query stays mounted but disabled while
- * a local provider is configured, keeping the hook order stable.
+ * the local switch is on, keeping the hook order stable.
  */
 export const useAISummary = ({
   entryId,
@@ -134,24 +136,24 @@ export const useAISummary = ({
   actionLanguage: SupportedActionLanguage
   enabled?: boolean
 }) => {
-  const provider = useLocalAIProvider()
+  const isLocal = useLocalAIEnabled()
 
   const official = usePrefetchSummary({
     entryId,
     target,
     actionLanguage,
-    enabled: !!enabled && !provider,
+    enabled: !!enabled && !isLocal,
   })
 
   const local = useQuery({
-    queryKey: ["local-summary", entryId, target, actionLanguage, provider?.model],
+    queryKey: ["local-summary", entryId, target, actionLanguage],
     queryFn: () => generateLocalSummary({ entryId, target, actionLanguage }),
-    enabled: !!enabled && !!provider,
+    enabled: !!enabled && isLocal,
     staleTime: 1000 * 60 * 60 * 24,
     retry: false,
   })
 
-  return provider ? local : official
+  return isLocal ? local : official
 }
 
 const MAX_TITLE_SOURCE_CHARS = 2_000
@@ -160,7 +162,9 @@ export const generateLocalChatTitle = async (
   messages: { role: string; content: string }[],
 ): Promise<string | null> => {
   const provider = getLocalAIProvider()
-  if (!provider) return null
+  if (!provider) {
+    throw new Error("本机 AI 服务商还没配置完整，请到设置 · AI 里补全接口地址和模型。")
+  }
 
   const transcript = messages
     .map((message) => `${message.role}: ${message.content}`)

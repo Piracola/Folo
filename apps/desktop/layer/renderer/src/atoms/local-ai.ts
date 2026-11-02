@@ -125,10 +125,29 @@ export const normalizeLocalAIProvider = (
 
 export const getLocalAIProvider = () => normalizeLocalAIProvider(getLocalAISettings())
 
-export const isLocalAIEnabled = () => !!getLocalAIProvider()
+/** Whether the switch is on, which is the user asking for local replies */
+export const isLocalAIEnabled = () => !!getLocalAISettings()?.enabled
 
+export const useLocalAIEnabled = () => !!useLocalAISettings()?.enabled
+
+/** The usable provider, or null while the address or the model is still missing */
 export const useLocalAIProvider = () => normalizeLocalAIProvider(useLocalAISettings())
 
 /** Model id exposed to the chat UI, shaped like the server model ids (`provider/model`) */
 export const formatLocalAIModelId = (provider: LocalAIProviderConfig) =>
   `${provider.kind}/${provider.model}`
+
+/**
+ * The model id the chat header should show while the local switch is on, even when the settings are
+ * still incomplete, so the header never falls back to an official model behind the user's back.
+ */
+export const useLocalAIModelId = () => {
+  const settings = useLocalAISettings()
+  if (!settings?.enabled) return null
+
+  const provider = normalizeLocalAIProvider(settings)
+  if (provider) return formatLocalAIModelId(provider)
+
+  const raw = settings.provider
+  return formatLocalAIModelId({ ...raw, model: raw.model?.trim() || "未配置" })
+}

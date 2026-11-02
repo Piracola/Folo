@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react"
 
-import { formatLocalAIModelId, useLocalAIProvider } from "~/atoms/local-ai"
+import { useLocalAIModelId } from "~/atoms/local-ai"
 
 import { setAIModelState, useAIModelState } from "../atoms/session"
 import { useAIConfiguration } from "./useAIConfiguration"
@@ -9,11 +9,11 @@ export const useAIModel = () => {
   const { data: configuration, isLoading } = useAIConfiguration()
   const modelState = useAIModelState()
   // With a local provider the model is a setting of this device, not one of the account's models
-  const localProvider = useLocalAIProvider()
+  const localModelId = useLocalAIModelId()
 
   // Validate and sync persistent model with available models
   useEffect(() => {
-    if (localProvider || !configuration || isLoading) return
+    if (localModelId || !configuration || isLoading) return
 
     const { selectedModel } = modelState
     const { defaultModel, availableModels = [] } = configuration
@@ -24,12 +24,12 @@ export const useAIModel = () => {
         selectedModel: defaultModel || null,
       })
     }
-  }, [configuration, isLoading, modelState, localProvider])
+  }, [configuration, isLoading, modelState, localModelId])
 
   // Get current effective model
   const currentModel = useMemo(() => {
-    if (localProvider) {
-      return formatLocalAIModelId(localProvider)
+    if (localModelId) {
+      return localModelId
     }
 
     if (!configuration) return null
@@ -43,10 +43,10 @@ export const useAIModel = () => {
     }
 
     return defaultModel || null
-  }, [configuration, modelState, localProvider])
+  }, [configuration, modelState, localModelId])
 
   const changeModel = (model: string) => {
-    if (localProvider) {
+    if (localModelId) {
       return
     }
 
@@ -60,14 +60,13 @@ export const useAIModel = () => {
     })
   }
 
-  if (localProvider) {
-    const localModel = formatLocalAIModelId(localProvider)
+  if (localModelId) {
     return {
       data: {
-        defaultModel: localModel,
-        availableModels: [localModel],
+        defaultModel: localModelId,
+        availableModels: [localModelId],
         availableModelsMenu: [],
-        currentModel: localModel,
+        currentModel: localModelId,
       },
       isLoading: false,
       changeModel,
