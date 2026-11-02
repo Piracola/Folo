@@ -7,6 +7,8 @@ import "@follow/components/assets/font.css"
 import "./styles/main.css"
 // Registers the "messaging" sync model before the sync engine starts.
 import "./lib/web-push-registration"
+// Reports a signed in account as a paid one so the member-only parts of the UI stay usable
+import "./modules/patch/unlock-membership"
 
 import { IN_ELECTRON, WEB_BUILD } from "@follow/shared/constants"
 import {
