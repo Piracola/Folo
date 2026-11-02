@@ -1,11 +1,11 @@
 import { Spring } from "@follow/components/constants/spring.js"
-import { usePrefetchSummary } from "@follow/store/summary/hooks"
 import { m } from "motion/react"
 import { useTranslation } from "react-i18next"
 
 import { useEntryIsInReadabilitySuccess } from "~/atoms/readability"
 import { useActionLanguage } from "~/atoms/settings/general"
 import { AISummaryCardBase } from "~/components/ui/ai-summary-card"
+import { useAISummary } from "~/modules/local-ai/tasks"
 
 interface EntrySummaryCardProps {
   entryId: string
@@ -16,7 +16,7 @@ export const EntrySummaryCard: React.FC<EntrySummaryCardProps> = ({ entryId, cla
   const { t } = useTranslation("ai")
   const actionLanguage = useActionLanguage()
   const isInReadabilitySuccess = useEntryIsInReadabilitySuccess(entryId)
-  const summary = usePrefetchSummary({
+  const summary = useAISummary({
     entryId,
     target: isInReadabilitySuccess ? "readabilityContent" : "content",
     actionLanguage,

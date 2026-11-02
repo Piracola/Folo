@@ -1,4 +1,6 @@
+import { isLocalAIEnabled } from "~/atoms/local-ai"
 import { followClient } from "~/lib/api-client"
+import { generateLocalChatTitle } from "~/modules/local-ai/tasks"
 
 import { AIPersistService } from "../services"
 import type { SendingUIMessage } from "../store/types"
@@ -28,6 +30,10 @@ export const generateChatTitle = async (chatId: string, messages: SendingUIMessa
   })
 
   // A failed request throws, so the caller can say the title could not be generated
+  if (isLocalAIEnabled()) {
+    return generateLocalChatTitle(relevantMessages)
+  }
+
   const response = await followClient.api.ai.summaryTitle({
     chatId,
     messages: relevantMessages,

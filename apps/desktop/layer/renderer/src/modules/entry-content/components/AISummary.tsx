@@ -1,5 +1,4 @@
 import { useEntry } from "@follow/store/entry/hooks"
-import { usePrefetchSummary } from "@follow/store/summary/hooks"
 import { cn } from "@follow/utils/utils"
 import { useTranslation } from "react-i18next"
 
@@ -8,6 +7,7 @@ import { useEntryIsInReadabilitySuccess } from "~/atoms/readability"
 import { setAIPanelVisibility, useAIPanelVisibility } from "~/atoms/settings/ai"
 import { useActionLanguage } from "~/atoms/settings/general"
 import { AISummaryCardBase } from "~/components/ui/ai-summary-card"
+import { useAISummary } from "~/modules/local-ai/tasks"
 
 export function AISummary({ entryId }: { entryId: string }) {
   const { t } = useTranslation()
@@ -20,7 +20,7 @@ export function AISummary({ entryId }: { entryId: string }) {
   // AI Chat panel state
   const isAIPanelVisible = useAIPanelVisibility()
 
-  const summary = usePrefetchSummary({
+  const summary = useAISummary({
     actionLanguage,
     entryId,
     target: isInReadabilitySuccess ? "readabilityContent" : "content",

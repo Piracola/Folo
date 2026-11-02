@@ -3,6 +3,9 @@ import type { HttpChatTransportInitOptions, UIMessageChunk } from "ai"
 import { HttpChatTransport, parseJsonEventStream, uiMessageChunkSchema } from "ai"
 import { t } from "i18next"
 
+import { isLocalAIEnabled } from "~/atoms/local-ai"
+import { LocalChatTransport } from "~/modules/local-ai/chat-transport"
+
 import { getAIModelState } from "../atoms/session"
 import { AIPersistService } from "../services"
 import { createChatStreamTimeout } from "../utils/chat-stream-timeout"
@@ -48,6 +51,12 @@ export function createChatTitleHandler(
  * This is used by the AbstractChat instance to communicate with AI providers
  */
 export function createChatTransport({ onValue, titleHandler }: CreateChatTransportOptions = {}) {
+  // With a local provider configured the reply never touches the Folo API, so the streaming
+  // transport is replaced instead of being repointed at another endpoint.
+  if (isLocalAIEnabled()) {
+    return new LocalChatTransport()
+  }
+
   return new ExtendChatTransport({
     onValue,
     titleHandler,

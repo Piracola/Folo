@@ -6,7 +6,6 @@ import {
 } from "@follow/components/ui/lexical-rich-editor/utils.js"
 import { isFreeRole } from "@follow/constants"
 import { getCategoryFeedIds } from "@follow/store/subscription/getter"
-import { usePrefetchSummary } from "@follow/store/summary/hooks"
 import { useUserRole } from "@follow/store/user/hooks"
 import { tracker } from "@follow/tracker"
 import { detectIsEditableElement, nextFrame } from "@follow/utils"
@@ -36,6 +35,7 @@ import {
   useHasMessages,
   useLastUserMessage,
 } from "~/modules/ai-chat/store/hooks"
+import { useAISummary } from "~/modules/local-ai/tasks"
 
 import { LexicalAIEditorNodes } from "../../editor"
 import { useAIConfiguration } from "../../hooks/useAIConfiguration"
@@ -75,7 +75,7 @@ const ChatInterfaceContent = ({ centerInputOnEmpty, visualOffsetY }: ChatInterfa
   const mainEntryId = useMainEntryId()
   const actionLanguage = useActionLanguage()
 
-  usePrefetchSummary({
+  useAISummary({
     entryId: mainEntryId || "",
     target: "content",
     actionLanguage,

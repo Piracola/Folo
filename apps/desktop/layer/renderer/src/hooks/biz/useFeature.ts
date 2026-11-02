@@ -1,6 +1,5 @@
 import { getDebugFeatureValue, useDebugFeatureValue } from "~/atoms/debug-feature"
-import { getServerConfigs, useServerConfigs } from "~/atoms/server-configs"
-import { featureConfigMap } from "~/lib/features"
+import type { featureConfigMap } from "~/lib/features"
 
 // Define debug feature value structure
 interface DebugFeatureValue {
@@ -15,13 +14,11 @@ export type FeatureKey = keyof typeof featureConfigMap
  * Core feature checking logic to avoid code duplication
  * @param feature - Feature key name
  * @param debugFeatureValue - Debug feature values
- * @param serverConfigs - Server configuration
  * @returns Whether the feature is enabled
  */
 const checkFeatureEnabled = (
   feature: FeatureKey,
   debugFeatureValue: DebugFeatureValue,
-  serverConfigs: ReturnType<typeof getServerConfigs>,
 ): boolean => {
   const override = !!debugFeatureValue.__override
 
@@ -29,8 +26,9 @@ const checkFeatureEnabled = (
     return !!debugFeatureValue[feature]
   }
 
-  const serverConfigKey = featureConfigMap[feature]
-  return !!(serverConfigKey && serverConfigs?.[serverConfigKey])
+  // Feature switches of this build are always on. Nothing else is faked: the plan screen, the
+  // upgrade prompts and every request the official backend still has to answer behave as before.
+  return true
 }
 
 /**
@@ -40,9 +38,8 @@ const checkFeatureEnabled = (
  */
 export const useFeature = (feature: FeatureKey): boolean => {
   const debugFeatureValue = useDebugFeatureValue() as DebugFeatureValue
-  const serverConfigs = useServerConfigs()
 
-  return checkFeatureEnabled(feature, debugFeatureValue, serverConfigs)
+  return checkFeatureEnabled(feature, debugFeatureValue)
 }
 
 /**
@@ -52,7 +49,6 @@ export const useFeature = (feature: FeatureKey): boolean => {
  */
 export const getFeature = (feature: FeatureKey): boolean => {
   const debugFeatureValue = getDebugFeatureValue() as DebugFeatureValue
-  const serverConfigs = getServerConfigs()
 
-  return checkFeatureEnabled(feature, debugFeatureValue, serverConfigs)
+  return checkFeatureEnabled(feature, debugFeatureValue)
 }
