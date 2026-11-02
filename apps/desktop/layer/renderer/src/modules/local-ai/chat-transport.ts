@@ -3,7 +3,7 @@ import { createUIMessageStream } from "ai"
 import { t } from "i18next"
 import { nanoid } from "nanoid"
 
-import { getLocalAIProvider } from "~/atoms/local-ai"
+import { getLocalAIProvider, isLocalAIEnabledFor } from "~/atoms/local-ai"
 import { getAISettings } from "~/atoms/settings/ai"
 import { AIPersistService } from "~/modules/ai-chat/services"
 import type { BizUIMessage } from "~/modules/ai-chat/store/types"
@@ -127,6 +127,7 @@ export class LocalChatTransport implements ChatTransport<BizUIMessage> {
   private async updateTitle(messages: LocalAIMessage[]) {
     const { titleHandler } = this.options
     if (!titleHandler) return
+    if (!isLocalAIEnabledFor("title")) return
     if (!(titleHandler.shouldHandle?.() ?? true)) return
 
     try {

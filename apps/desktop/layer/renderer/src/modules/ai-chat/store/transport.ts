@@ -3,7 +3,7 @@ import type { ChatTransport, HttpChatTransportInitOptions, UIMessageChunk } from
 import { HttpChatTransport, parseJsonEventStream, uiMessageChunkSchema } from "ai"
 import { t } from "i18next"
 
-import { isLocalAIEnabled } from "~/atoms/local-ai"
+import { isLocalAIEnabledFor } from "~/atoms/local-ai"
 import { LocalChatTransport } from "~/modules/local-ai/chat-transport"
 
 import { getAIModelState } from "../atoms/session"
@@ -62,7 +62,7 @@ class SwitchableChatTransport implements ChatTransport<BizUIMessage> {
   private create() {
     const { onValue, titleHandler } = this.options
 
-    if (isLocalAIEnabled()) {
+    if (isLocalAIEnabledFor("chat")) {
       return new LocalChatTransport({ titleHandler })
     }
 

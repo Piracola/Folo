@@ -13,17 +13,34 @@ import { useId, useState } from "react"
 import { useTranslation } from "react-i18next"
 import { toast } from "sonner"
 
-import type { LocalAIProviderConfig, LocalAIProviderKind } from "~/atoms/local-ai"
+import type { LocalAIFeature, LocalAIProviderConfig, LocalAIProviderKind } from "~/atoms/local-ai"
 import {
   defaultLocalAISettings,
   getLocalAIProviderPreset,
   getLocalAISettings,
+  LOCAL_AI_FEATURES,
   LOCAL_AI_PROVIDER_PRESETS,
+  normalizeLocalAIFeatureFlags,
   normalizeLocalAIProvider,
   setLocalAISettings,
   useLocalAISettings,
 } from "~/atoms/local-ai"
 import { completeLocalChat } from "~/modules/local-ai/bridge"
+
+const FEATURE_TEXT = {
+  chat: {
+    label: "local_provider.feature_chat",
+    description: "local_provider.feature_chat_desc",
+  },
+  summary: {
+    label: "local_provider.feature_summary",
+    description: "local_provider.feature_summary_desc",
+  },
+  title: {
+    label: "local_provider.feature_title",
+    description: "local_provider.feature_title_desc",
+  },
+} as const satisfies Record<LocalAIFeature, { label: string; description: string }>
 
 /**
  * Settings for an AI provider that the app talks to directly.
@@ -39,8 +56,9 @@ export const LocalProviderSection = () => {
 
   const provider: LocalAIProviderConfig = settings?.provider ?? defaultLocalAISettings.provider
   const enabled = !!settings?.enabled
+  const features = normalizeLocalAIFeatureFlags(settings?.features)
   const preset = getLocalAIProviderPreset(provider.kind)
-  const isReady = !!normalizeLocalAIProvider({ enabled: true, provider })
+  const isReady = !!normalizeLocalAIProvider({ enabled: true, features, provider })
 
   const updateProvider = (patch: Partial<LocalAIProviderConfig>) => {
     const current = getLocalAISettings() ?? defaultLocalAISettings
@@ -60,8 +78,16 @@ export const LocalProviderSection = () => {
     updateProvider({ kind, baseURL: nextPreset.baseURL, model: nextPreset.model })
   }
 
+  const handleToggleFeature = (feature: LocalAIFeature, nextEnabled: boolean) => {
+    const current = getLocalAISettings() ?? defaultLocalAISettings
+    setLocalAISettings({
+      ...current,
+      features: { ...normalizeLocalAIFeatureFlags(current.features), [feature]: nextEnabled },
+    })
+  }
+
   const handleTest = async () => {
-    const normalized = normalizeLocalAIProvider({ enabled: true, provider })
+    const normalized = normalizeLocalAIProvider({ enabled: true, features, provider })
     if (!normalized) {
       toast.error(t("local_provider.test_incomplete"))
       return
@@ -142,6 +168,33 @@ export const LocalProviderSection = () => {
               onChange={(event) => updateProvider({ model: event.target.value })}
             />
             <p className="text-xs text-text-secondary">{t("local_provider.model_help")}</p>
+          </div>
+
+          <div className="space-y-2">
+            <Label>{t("local_provider.features")}</Label>
+            <p className="text-xs text-text-secondary">{t("local_provider.features_help")}</p>
+            <div className="divide-y divide-fill-secondary rounded-md border border-fill-secondary">
+              {LOCAL_AI_FEATURES.map((feature) => {
+                const switchId = `${enabledSwitchId}-${feature}`
+                const text = FEATURE_TEXT[feature]
+
+                return (
+                  <div key={feature} className="flex items-center justify-between gap-3 p-3">
+                    <div className="space-y-0.5">
+                      <Label htmlFor={switchId} className="text-sm text-text">
+                        {t(text.label)}
+                      </Label>
+                      <div className="text-xs text-text-secondary">{t(text.description)}</div>
+                    </div>
+                    <Switch
+                      id={switchId}
+                      checked={features[feature]}
+                      onCheckedChange={(next) => handleToggleFeature(feature, next)}
+                    />
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           <div className="flex items-center gap-3">

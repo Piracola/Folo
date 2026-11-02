@@ -1,7 +1,7 @@
 import type { ConfigResponse } from "@follow-app/client-sdk"
 import { useQuery } from "@tanstack/react-query"
 
-import { useLocalAIEnabled, useLocalAIModelId } from "~/atoms/local-ai"
+import { useLocalAIEnabledFor, useLocalAIModelId } from "~/atoms/local-ai"
 import { followApi } from "~/lib/api-client"
 
 /** A year, in the units the quota payloads use */
@@ -53,7 +53,8 @@ const createLocalConfiguration = (model: string | null): ConfigResponse => {
 }
 
 export const useAIConfiguration = () => {
-  const isLocal = useLocalAIEnabled()
+  // The quota only gates the chat UI, so it follows the chat takeover rather than the master switch
+  const isLocal = useLocalAIEnabledFor("chat")
   const localModelId = useLocalAIModelId()
 
   return useQuery({

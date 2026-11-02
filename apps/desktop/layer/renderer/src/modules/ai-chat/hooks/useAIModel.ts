@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from "react"
 
-import { useLocalAIModelId } from "~/atoms/local-ai"
+import { useLocalAIEnabledFor, useLocalAIModelId } from "~/atoms/local-ai"
 
 import { setAIModelState, useAIModelState } from "../atoms/session"
 import { useAIConfiguration } from "./useAIConfiguration"
@@ -10,10 +10,12 @@ export const useAIModel = () => {
   const modelState = useAIModelState()
   // With a local provider the model is a setting of this device, not one of the account's models
   const localModelId = useLocalAIModelId()
+  const isLocalChat = useLocalAIEnabledFor("chat")
+  const activeLocalModelId = isLocalChat ? localModelId : null
 
   // Validate and sync persistent model with available models
   useEffect(() => {
-    if (localModelId || !configuration || isLoading) return
+    if (activeLocalModelId || !configuration || isLoading) return
 
     const { selectedModel } = modelState
     const { defaultModel, availableModels = [] } = configuration
@@ -24,12 +26,12 @@ export const useAIModel = () => {
         selectedModel: defaultModel || null,
       })
     }
-  }, [configuration, isLoading, modelState, localModelId])
+  }, [configuration, isLoading, modelState, activeLocalModelId])
 
   // Get current effective model
   const currentModel = useMemo(() => {
-    if (localModelId) {
-      return localModelId
+    if (activeLocalModelId) {
+      return activeLocalModelId
     }
 
     if (!configuration) return null
@@ -43,10 +45,10 @@ export const useAIModel = () => {
     }
 
     return defaultModel || null
-  }, [configuration, modelState, localModelId])
+  }, [configuration, modelState, activeLocalModelId])
 
   const changeModel = (model: string) => {
-    if (localModelId) {
+    if (activeLocalModelId) {
       return
     }
 
@@ -60,13 +62,13 @@ export const useAIModel = () => {
     })
   }
 
-  if (localModelId) {
+  if (activeLocalModelId) {
     return {
       data: {
-        defaultModel: localModelId,
-        availableModels: [localModelId],
+        defaultModel: activeLocalModelId,
+        availableModels: [activeLocalModelId],
         availableModelsMenu: [],
-        currentModel: localModelId,
+        currentModel: activeLocalModelId,
       },
       isLoading: false,
       changeModel,

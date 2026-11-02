@@ -55,9 +55,9 @@
 
 - `hooks/biz/useFeature.ts` — 功能开关恒开
 - `src/main.tsx` — 引入会员解锁
-- `modules/ai-chat/store/transport.ts` — 启用本机服务商时换掉聊天传输层
+- `modules/ai-chat/store/transport.ts` — 聊天接管开关打开时换掉聊天传输层
 - `modules/ai-chat/hooks/useAIModel.ts` — 模型名显示为本机模型
-- `modules/ai-chat/utils/titleGeneration.ts` — 标题走本机
+- `modules/ai-chat/utils/titleGeneration.ts` — 标题接管开关打开时走本机
 - `modules/entry-content/components/AISummary.tsx`、`modules/ai-chat/components/welcome/EntrySummaryCard.tsx`、`modules/ai-chat/components/layouts/ChatInterface.tsx` — 摘要改用 `useAISummary`
 - `modules/settings/tabs/ai.tsx` — 增加「本机 AI 服务」分区
 - `apps/desktop/layer/main/src/ipc/index.ts` — 注册 `AiService`
@@ -67,7 +67,7 @@
 
 1. 设置 → AI → **本机 AI 服务**，打开开关。
 2. 选服务商（DeepSeek / OpenAI / Moonshot / OpenRouter / Ollama / 自定义 OpenAI 兼容），填接口地址、密钥、模型名，点「测试连接」。
-3. 之后聊天、摘要、标题都由这个服务商回答；关掉开关立刻回到官方行为。
+3. 下面的**接管范围**里逐项勾选：聊天 / 条目摘要 / 对话标题。勾哪个就由你的服务商回答，没勾的继续走官方后端；关掉总开关立刻回到全官方行为。
 
 Ollama 这类本机运行时，接口地址填 `http://127.0.0.1:11434/v1`，密钥留空。
 

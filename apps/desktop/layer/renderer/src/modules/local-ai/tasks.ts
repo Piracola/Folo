@@ -4,7 +4,7 @@ import { usePrefetchSummary } from "@follow/store/summary/hooks"
 import { summaryActions, useSummaryStore } from "@follow/store/summary/store"
 import { useQuery } from "@tanstack/react-query"
 
-import { getLocalAIProvider, useLocalAIEnabled } from "~/atoms/local-ai"
+import { getLocalAIProvider, useLocalAIEnabledFor } from "~/atoms/local-ai"
 import { convertHtmlToIntegrationMarkdown } from "~/modules/integration/entry-content-markdown"
 
 import type { LocalAIMessage } from "./bridge"
@@ -136,7 +136,7 @@ export const useAISummary = ({
   actionLanguage: SupportedActionLanguage
   enabled?: boolean
 }) => {
-  const isLocal = useLocalAIEnabled()
+  const isLocal = useLocalAIEnabledFor("summary")
 
   const official = usePrefetchSummary({
     entryId,

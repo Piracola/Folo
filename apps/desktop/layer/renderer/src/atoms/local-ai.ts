@@ -23,9 +23,31 @@ export interface LocalAIProviderConfig {
   headers?: Record<string, string>
 }
 
+/**
+ * The AI features a local provider can take over. Everything else keeps using the official
+ * backend, so a half configured provider never breaks the parts the user did not opt into.
+ */
+export type LocalAIFeature = "chat" | "summary" | "title"
+
+export const LOCAL_AI_FEATURES: LocalAIFeature[] = ["chat", "summary", "title"]
+
+export type LocalAIFeatureFlags = Record<LocalAIFeature, boolean>
+
+const defaultFeatureFlags: LocalAIFeatureFlags = {
+  chat: true,
+  summary: true,
+  title: true,
+}
+
+export const normalizeLocalAIFeatureFlags = (
+  flags: Partial<LocalAIFeatureFlags> | undefined | null,
+): LocalAIFeatureFlags => ({ ...defaultFeatureFlags, ...flags })
+
 export interface LocalAISettings {
   enabled: boolean
   provider: LocalAIProviderConfig
+  /** Which of the features above the provider answers */
+  features: LocalAIFeatureFlags
 }
 
 export interface LocalAIProviderPreset {
@@ -95,6 +117,7 @@ const defaultProvider: LocalAIProviderConfig = {
 export const defaultLocalAISettings: LocalAISettings = {
   enabled: false,
   provider: defaultProvider,
+  features: defaultFeatureFlags,
 }
 
 export const [, , useLocalAISettings, , getLocalAISettings, setLocalAISettings] = createAtomHooks(
@@ -129,6 +152,21 @@ export const getLocalAIProvider = () => normalizeLocalAIProvider(getLocalAISetti
 export const isLocalAIEnabled = () => !!getLocalAISettings()?.enabled
 
 export const useLocalAIEnabled = () => !!useLocalAISettings()?.enabled
+
+/** Whether this particular feature is served by the local provider */
+export const isLocalAIEnabledFor = (feature: LocalAIFeature) => {
+  const settings = getLocalAISettings()
+  if (!settings?.enabled) return false
+
+  return normalizeLocalAIFeatureFlags(settings.features)[feature]
+}
+
+export const useLocalAIEnabledFor = (feature: LocalAIFeature) => {
+  const enabled = useLocalAIEnabled()
+  const settings = useLocalAISettings()
+
+  return enabled && normalizeLocalAIFeatureFlags(settings?.features)[feature]
+}
 
 /** The usable provider, or null while the address or the model is still missing */
 export const useLocalAIProvider = () => normalizeLocalAIProvider(useLocalAISettings())
